@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
@@ -32,7 +33,10 @@ func grepInPath(w io.Writer, path string, pattern string) error {
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	pattern := r.FormValue("q")
 	if pattern == "" {
-		fmt.Fprintln(w, "usage: /?q=<pattern you want to search>")
+		t := template.Must(template.ParseFiles("index.html"))
+		if err := t.ExecuteTemplate(w, "index.html", *rootDir); err != nil {
+			log.Fatalln(err)
+		}
 		return
 	}
 
