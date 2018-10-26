@@ -2,36 +2,38 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"io/ioutil"
 )
 
 var rootDir = flag.String("root_dir", "", "root directory of the source tree")
-var pattern = flag.String("pattern", "", "pattern to be found")
 
-func grepInPath(path string) error {
+func grepInPath(w io.Writer, path string, pattern string) error {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
 	for i, line := range strings.Split(string(b), "\n") {
-		if !strings.Contains(line, *pattern) {
+		if !strings.Contains(line, pattern) {
 			continue
 		}
-		log.Printf("%s:%d: %s\n", path, i, line)
+		fmt.Fprintf(w, "%s:%d: %s\n", path, i, line)
 	}
 	return nil
 }
 
-func main() {
-	flag.Parse()
-
-	if *rootDir == ""  || *pattern == "" {
-		log.Fatalln("root dir and pattern cannot be empty")
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+	pattern := r.FormValue("q")
+	if pattern == "" {
+		fmt.Fprintln(w, "usage: /?q=<pattern you want to search>")
+		return
 	}
 
 	err := filepath.Walk(*rootDir, func(path string, info os.FileInfo, err error) error {
@@ -41,10 +43,23 @@ func main() {
 		if strings.Contains(path, ".git") {
 			return nil
 		}
-		return grepInPath(path)
+		return grepInPath(w, path, pattern)
 	})
 
 	if err != nil {
-		log.Fatalln("filepath.Walk:", err)
+		fmt.Fprintln(w, err)
 	}
+}
+
+func main() {
+	flag.Parse()
+
+	if *rootDir == "" {
+		log.Fatalln("root dir cannot be empty")
+	}
+
+	log.Println("Listening localhost:3000...")
+
+	http.HandleFunc("/", httpHandler)
+	http.ListenAndServe(":3000", nil)
 }
