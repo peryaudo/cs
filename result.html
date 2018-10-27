@@ -6,7 +6,7 @@
 	<body>
 		<p>Search Results</p>
 		{{range .}}
-		<p><a href="/{{.RelPath}}">{{.RelPath}}</a>:{{.LineNum}}: {{.Line}}</p>
+		<p><a href="/src/{{.RelPath}}">{{.RelPath}}</a>:{{.LineNum}}: {{.Line}}</p>
 		{{end}}
 	</body>
 </html>

@@ -77,10 +77,15 @@ func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	// If the path is not root, return the file content.
-	if path != "/" {
-		fullPath := filepath.Join(*rootDir, path)
+	// If the path is /src, return the file content.
+	if strings.HasPrefix(path, "/src") {
+		fullPath := filepath.Join(*rootDir, path[4:])
 		http.ServeFile(w, r, fullPath)
+		return
+	}
+
+	if path != "/" {
+		http.NotFound(w, r)
 		return
 	}
 
