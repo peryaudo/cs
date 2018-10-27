@@ -21,16 +21,28 @@ func grepInPath(w io.Writer, path string, pattern string) error {
 		return err
 	}
 
+	relPath, err := filepath.Rel(*rootDir, path)
+	if err != nil {
+		return err
+	}
+
 	for i, line := range strings.Split(string(b), "\n") {
 		if !strings.Contains(line, pattern) {
 			continue
 		}
-		fmt.Fprintf(w, "%s:%d: %s\n", path, i, line)
+		fmt.Fprintf(w, "%s:%d: %s\n", relPath, i, line)
 	}
 	return nil
 }
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path != "/" {
+		fullPath := filepath.Join(*rootDir, path)
+		http.ServeFile(w, r, fullPath)
+		return
+	}
+
 	pattern := r.FormValue("q")
 	if pattern == "" {
 		t := template.Must(template.ParseFiles("index.html"))
