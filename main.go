@@ -76,29 +76,34 @@ func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+
+	// If the path is not root, return the file content.
 	if path != "/" {
 		fullPath := filepath.Join(*rootDir, path)
 		http.ServeFile(w, r, fullPath)
 		return
 	}
 
+	t := template.Must(template.ParseFiles("index.html", "result.html"))
+
+	// If the path is root and query string is empty, return the index page.
 	pattern := r.FormValue("q")
 	if pattern == "" {
-		t := template.Must(template.ParseFiles("index.html"))
 		if err := t.ExecuteTemplate(w, "index.html", *rootDir); err != nil {
 			log.Fatalln(err)
 		}
 		return
 	}
 
+	// Otherwise, return the search result.
 	result, err := grepAllFiles(*rootDir, pattern)
 	if err != nil {
 		fmt.Fprintln(w, err)
 		return
 	}
 
-	for _, snippet := range result {
-		fmt.Fprintf(w, "%s:%d: %s\n", snippet.RelPath, snippet.LineNum, snippet.Line)
+	if err := t.ExecuteTemplate(w, "result.html", result); err != nil {
+		log.Fatalln(err)
 	}
 }
 

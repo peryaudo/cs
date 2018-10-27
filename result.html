@@ -1,0 +1,12 @@
+<html>
+	<head>
+		<meta charset=utf-8>
+		<title>Search Results</title>
+	</head>
+	<body>
+		<p>Search Results</p>
+		{{range .}}
+		<pre>{{.RelPath}}:{{.LineNum}}: {{.Line}}</pre>
+		{{end}}
+	</body>
+</html>
