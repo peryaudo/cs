@@ -20,6 +20,12 @@ type Snippet struct {
 	Line    string
 }
 
+type SearchResult struct {
+	Pattern  string
+	RootDir  string
+	Snippets []Snippet
+}
+
 func grepFile(fileName string, pattern string) ([]Snippet, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -101,11 +107,16 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Otherwise, return the search result.
-	result, err := grepAllFiles(*rootDir, pattern)
+	snippets, err := grepAllFiles(*rootDir, pattern)
 	if err != nil {
 		fmt.Fprintln(w, err)
 		return
 	}
+
+	result := SearchResult{
+		Pattern:  pattern,
+		RootDir:  *rootDir,
+		Snippets: snippets}
 
 	if err := t.ExecuteTemplate(w, "result.html", result); err != nil {
 		log.Fatalln(err)
