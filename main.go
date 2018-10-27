@@ -26,6 +26,12 @@ type SearchResult struct {
 	Snippets []Snippet
 }
 
+type SourceResult struct {
+	Pattern string
+	RelPath string
+	Source  string
+}
+
 func grepFile(fileName string, pattern string) ([]Snippet, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -82,11 +88,34 @@ func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
+	pattern := r.FormValue("q")
+
+	t := template.Must(template.ParseFiles("index.html", "result.html", "source.html"))
 
 	// If the path is /src, return the file content.
 	if strings.HasPrefix(path, "/src") {
 		fullPath := filepath.Join(*rootDir, path[4:])
-		http.ServeFile(w, r, fullPath)
+		info, err := os.Stat(fullPath)
+		if err != nil || info.IsDir() {
+			http.ServeFile(w, r, fullPath)
+			return
+		}
+
+		content, err := ioutil.ReadFile(fullPath)
+		if err != nil {
+			log.Println(err)
+			http.NotFound(w, r)
+			return
+		}
+
+		result := SourceResult{
+			Pattern: pattern,
+			RelPath: fullPath, // TODO(tetsui): Fix this.
+			Source:  string(content)}
+
+		if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
+			log.Fatalln(err)
+		}
 		return
 	}
 
@@ -95,10 +124,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t := template.Must(template.ParseFiles("index.html", "result.html"))
-
 	// If the path is root and query string is empty, return the index page.
-	pattern := r.FormValue("q")
 	if pattern == "" {
 		if err := t.ExecuteTemplate(w, "index.html", *rootDir); err != nil {
 			log.Fatalln(err)
