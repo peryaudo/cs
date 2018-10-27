@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,24 +14,64 @@ import (
 
 var rootDir = flag.String("root_dir", "", "root directory of the source tree")
 
-func grepInPath(w io.Writer, path string, pattern string) error {
-	b, err := ioutil.ReadFile(path)
+type Snippet struct {
+	RelPath string
+	LineNum int
+	Line    string
+}
+
+func grepFile(fileName string, pattern string) ([]Snippet, error) {
+	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	relPath, err := filepath.Rel(*rootDir, path)
-	if err != nil {
-		return err
-	}
-
+	result := []Snippet{}
 	for i, line := range strings.Split(string(b), "\n") {
 		if !strings.Contains(line, pattern) {
 			continue
 		}
-		fmt.Fprintf(w, "%s:%d: %s\n", relPath, i, line)
+		snippet := Snippet{
+			RelPath: "",
+			LineNum: i + 1,
+			Line:    line}
+		result = append(result, snippet)
 	}
-	return nil
+	return result, nil
+}
+
+func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
+	results := []Snippet{}
+	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		if strings.Contains(path, ".git") {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return err
+		}
+
+		result, err := grepFile(path, pattern)
+		if err != nil {
+			return err
+		}
+
+		for _, snippet := range result {
+			snippet.RelPath = relPath
+			results = append(results, snippet)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func httpHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,18 +91,14 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := filepath.Walk(*rootDir, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		if strings.Contains(path, ".git") {
-			return nil
-		}
-		return grepInPath(w, path, pattern)
-	})
-
+	result, err := grepAllFiles(*rootDir, pattern)
 	if err != nil {
 		fmt.Fprintln(w, err)
+		return
+	}
+
+	for _, snippet := range result {
+		fmt.Fprintf(w, "%s:%d: %s\n", snippet.RelPath, snippet.LineNum, snippet.Line)
 	}
 }
 
