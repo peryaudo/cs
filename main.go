@@ -37,6 +37,12 @@ type SourceResult struct {
 	Source  template.HTML
 }
 
+type DirectoryResult struct {
+	Pattern string
+	RelPath string
+	Files   []string
+}
+
 func grepFile(fileName string, pattern string) ([]Snippet, error) {
 	b, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -111,31 +117,56 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	pattern := r.FormValue("q")
 
-	t := template.Must(template.ParseFiles("index.html", "result.html", "source.html"))
+	t := template.Must(template.ParseFiles("index.html", "result.html", "source.html", "directory.html"))
 
 	// If the path is /src, return the file content.
 	if strings.HasPrefix(path, "/src") {
 		fullPath := filepath.Join(*rootDir, path[4:])
+		relPath, _ := filepath.Rel(*rootDir, fullPath)
 		info, err := os.Stat(fullPath)
-		if err != nil || info.IsDir() {
-			http.ServeFile(w, r, fullPath)
-			return
-		}
-
-		content, err := ioutil.ReadFile(fullPath)
 		if err != nil {
 			log.Println(err)
 			http.NotFound(w, r)
 			return
 		}
 
-		result := SourceResult{
-			Pattern: pattern,
-			RelPath: fullPath, // TODO(tetsui): Fix this.
-			Source:  highlight(string(content))}
+		if info.IsDir() {
+			files, err := ioutil.ReadDir(fullPath)
+			if err != nil {
+				log.Println(err)
+				http.NotFound(w, r)
+				return
+			}
 
-		if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
-			log.Fatalln(err)
+			fileNames := []string{}
+			for _, file := range files {
+				fileNames = append(fileNames, file.Name())
+			}
+
+			result := DirectoryResult{
+				Pattern: pattern,
+				RelPath: relPath,
+				Files:   fileNames}
+
+			if err := t.ExecuteTemplate(w, "directory.html", result); err != nil {
+				log.Fatalln(err)
+			}
+		} else {
+			content, err := ioutil.ReadFile(fullPath)
+			if err != nil {
+				log.Println(err)
+				http.NotFound(w, r)
+				return
+			}
+
+			result := SourceResult{
+				Pattern: pattern,
+				RelPath: relPath,
+				Source:  highlight(string(content))}
+
+			if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
+				log.Fatalln(err)
+			}
 		}
 		return
 	}
