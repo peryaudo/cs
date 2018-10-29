@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"github.com/alecthomas/chroma"
+	"github.com/alecthomas/chroma/formatters/html"
+	"github.com/alecthomas/chroma/lexers"
+	"github.com/alecthomas/chroma/styles"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -29,7 +34,7 @@ type SearchResult struct {
 type SourceResult struct {
 	Pattern string
 	RelPath string
-	Source  string
+	Source  template.HTML
 }
 
 func grepFile(fileName string, pattern string) ([]Snippet, error) {
@@ -86,6 +91,22 @@ func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
 	return results, nil
 }
 
+func highlight(source string) template.HTML {
+	l := chroma.Coalesce(lexers.Get("c"))
+	f := html.New(html.WithLineNumbers())
+	s := styles.Get("monokai")
+	it, err := l.Tokenise(nil, source)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	var buf bytes.Buffer
+	err = f.Format(&buf, s, it)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	return template.HTML(buf.String())
+}
+
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	pattern := r.FormValue("q")
@@ -111,7 +132,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 		result := SourceResult{
 			Pattern: pattern,
 			RelPath: fullPath, // TODO(tetsui): Fix this.
-			Source:  string(content)}
+			Source:  highlight(string(content))}
 
 		if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
 			log.Fatalln(err)
