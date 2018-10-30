@@ -96,20 +96,27 @@ func grepAllFiles(rootDir string, pattern string) ([]Snippet, error) {
 	return results, nil
 }
 
-func highlight(source string) template.HTML {
-	l := chroma.Coalesce(lexers.Get("c"))
+func highlight(filename, source string) (template.HTML, error) {
+	l := lexers.Match(filename)
+	if l == nil {
+		l = lexers.Fallback
+	}
+	l = chroma.Coalesce(l)
 	f := html.New(html.WithLineNumbers())
 	s := styles.Get("monokai")
+
 	it, err := l.Tokenise(nil, source)
 	if err != nil {
-		log.Fatalln(err)
+		return template.HTML(""), err
 	}
+
 	var buf bytes.Buffer
 	err = f.Format(&buf, s, it)
 	if err != nil {
-		log.Fatalln(err)
+		return template.HTML(""), err
 	}
-	return template.HTML(buf.String())
+
+	return template.HTML(buf.String()), nil
 }
 
 func handleSearchResult(w http.ResponseWriter, pattern string) {
@@ -145,6 +152,9 @@ func handleDirectoryListing(w http.ResponseWriter, relPath, pattern string) {
 
 	fileNames := []string{}
 	for _, file := range files {
+		if file.Name() == ".git" {
+			continue
+		}
 		fileNames = append(fileNames, file.Name())
 	}
 
@@ -169,10 +179,16 @@ func handleSourceListing(w http.ResponseWriter, relPath, pattern string) {
 		return
 	}
 
+	source, err := highlight(relPath, string(content))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+	}
+
 	result := &SourceResult{
 		Pattern: pattern,
 		RelPath: relPath,
-		Source:  highlight(string(content))}
+		Source:  source}
 
 	if err := t.ExecuteTemplate(w, "layout", result); err != nil {
 		log.Println(err)
