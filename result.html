@@ -1,17 +1,5 @@
-<html>
-	<head>
-		<meta charset=utf-8>
-		<title>{{.Pattern}} - {{.RootDir}}</title>
-	</head>
-	<body>
-		<div>
-			<form action="/" method="get">
-				<input type="text" name="q" value="{{.Pattern}}">
-				<input type="submit" value="search">
-			</form>
-		</div>
-		{{range .Snippets}}
-		<p><a href="/{{.RelPath}}?q={{$.Pattern}}#L{{.LineNum}}">{{.RelPath}}:{{.LineNum}}</a>: {{.Line}}</p>
-		{{end}}
-	</body>
-</html>
+{{ define "content" }}
+{{range .Snippets}}
+<p><a href="/{{.RelPath}}?q={{$.Pattern}}#L{{.LineNum}}">{{.RelPath}}:{{.LineNum}}</a>: {{.Line}}</p>
+{{end}}
+{{ end }}

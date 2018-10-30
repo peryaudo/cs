@@ -113,7 +113,7 @@ func highlight(source string) template.HTML {
 }
 
 func handleSearchResult(w http.ResponseWriter, pattern string) {
-	t := template.Must(template.ParseFiles("result.html"))
+	t := template.Must(template.ParseFiles("layout.html", "result.html"))
 
 	snippets, err := grepAllFiles(*rootDir, pattern)
 	if err != nil {
@@ -122,19 +122,19 @@ func handleSearchResult(w http.ResponseWriter, pattern string) {
 		return
 	}
 
-	result := SearchResult{
+	result := &SearchResult{
 		Pattern:  pattern,
 		RootDir:  *rootDir,
 		Snippets: snippets}
 
-	if err := t.ExecuteTemplate(w, "result.html", result); err != nil {
+	if err := t.ExecuteTemplate(w, "layout", result); err != nil {
 		log.Println(err)
 		http.Error(w, err.Error(), 500)
 	}
 }
 
 func handleDirectoryListing(w http.ResponseWriter, relPath, pattern string) {
-	t := template.Must(template.ParseFiles("directory.html"))
+	t := template.Must(template.ParseFiles("layout.html", "directory.html"))
 
 	files, err := ioutil.ReadDir(filepath.Join(*rootDir, relPath))
 	if err != nil {
@@ -148,19 +148,19 @@ func handleDirectoryListing(w http.ResponseWriter, relPath, pattern string) {
 		fileNames = append(fileNames, file.Name())
 	}
 
-	result := DirectoryResult{
+	result := &DirectoryResult{
 		Pattern: pattern,
 		RelPath: relPath,
 		Files:   fileNames}
 
-	if err := t.ExecuteTemplate(w, "directory.html", result); err != nil {
+	if err := t.ExecuteTemplate(w, "layout", result); err != nil {
 		log.Println(err)
 		http.Error(w, err.Error(), 500)
 	}
 }
 
 func handleSourceListing(w http.ResponseWriter, relPath, pattern string) {
-	t := template.Must(template.ParseFiles("source.html"))
+	t := template.Must(template.ParseFiles("layout.html", "source.html"))
 
 	content, err := ioutil.ReadFile(filepath.Join(*rootDir, relPath))
 	if err != nil {
@@ -169,12 +169,12 @@ func handleSourceListing(w http.ResponseWriter, relPath, pattern string) {
 		return
 	}
 
-	result := SourceResult{
+	result := &SourceResult{
 		Pattern: pattern,
 		RelPath: relPath,
 		Source:  highlight(string(content))}
 
-	if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
+	if err := t.ExecuteTemplate(w, "layout", result); err != nil {
 		log.Println(err)
 		http.Error(w, err.Error(), 500)
 	}
