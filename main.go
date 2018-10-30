@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"github.com/alecthomas/chroma"
 	"github.com/alecthomas/chroma/formatters/html"
 	"github.com/alecthomas/chroma/lexers"
@@ -113,16 +112,81 @@ func highlight(source string) template.HTML {
 	return template.HTML(buf.String())
 }
 
+func handleSearchResult(w http.ResponseWriter, pattern string) {
+	t := template.Must(template.ParseFiles("result.html"))
+
+	snippets, err := grepAllFiles(*rootDir, pattern)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	result := SearchResult{
+		Pattern:  pattern,
+		RootDir:  *rootDir,
+		Snippets: snippets}
+
+	if err := t.ExecuteTemplate(w, "result.html", result); err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+	}
+}
+
+func handleDirectoryListing(w http.ResponseWriter, relPath, pattern string) {
+	t := template.Must(template.ParseFiles("directory.html"))
+
+	files, err := ioutil.ReadDir(filepath.Join(*rootDir, relPath))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	fileNames := []string{}
+	for _, file := range files {
+		fileNames = append(fileNames, file.Name())
+	}
+
+	result := DirectoryResult{
+		Pattern: pattern,
+		RelPath: relPath,
+		Files:   fileNames}
+
+	if err := t.ExecuteTemplate(w, "directory.html", result); err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+	}
+}
+
+func handleSourceListing(w http.ResponseWriter, relPath, pattern string) {
+	t := template.Must(template.ParseFiles("source.html"))
+
+	content, err := ioutil.ReadFile(filepath.Join(*rootDir, relPath))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	result := SourceResult{
+		Pattern: pattern,
+		RelPath: relPath,
+		Source:  highlight(string(content))}
+
+	if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
+	}
+}
+
 func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	pattern := r.FormValue("q")
 
-	t := template.Must(template.ParseFiles("index.html", "result.html", "source.html", "directory.html"))
-
 	// If the path is /src, return the file content.
 	if strings.HasPrefix(path, "/src") {
 		fullPath := filepath.Join(*rootDir, path[4:])
-		relPath, _ := filepath.Rel(*rootDir, fullPath)
 		info, err := os.Stat(fullPath)
 		if err != nil {
 			log.Println(err)
@@ -130,43 +194,11 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		relPath, _ := filepath.Rel(*rootDir, fullPath)
 		if info.IsDir() {
-			files, err := ioutil.ReadDir(fullPath)
-			if err != nil {
-				log.Println(err)
-				http.NotFound(w, r)
-				return
-			}
-
-			fileNames := []string{}
-			for _, file := range files {
-				fileNames = append(fileNames, file.Name())
-			}
-
-			result := DirectoryResult{
-				Pattern: pattern,
-				RelPath: relPath,
-				Files:   fileNames}
-
-			if err := t.ExecuteTemplate(w, "directory.html", result); err != nil {
-				log.Fatalln(err)
-			}
+			handleDirectoryListing(w, relPath, pattern)
 		} else {
-			content, err := ioutil.ReadFile(fullPath)
-			if err != nil {
-				log.Println(err)
-				http.NotFound(w, r)
-				return
-			}
-
-			result := SourceResult{
-				Pattern: pattern,
-				RelPath: relPath,
-				Source:  highlight(string(content))}
-
-			if err := t.ExecuteTemplate(w, "source.html", result); err != nil {
-				log.Fatalln(err)
-			}
+			handleSourceListing(w, relPath, pattern)
 		}
 		return
 	}
@@ -178,6 +210,8 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If the path is root and query string is empty, return the index page.
 	if pattern == "" {
+		t := template.Must(template.ParseFiles("index.html"))
+
 		if err := t.ExecuteTemplate(w, "index.html", *rootDir); err != nil {
 			log.Fatalln(err)
 		}
@@ -185,20 +219,7 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Otherwise, return the search result.
-	snippets, err := grepAllFiles(*rootDir, pattern)
-	if err != nil {
-		fmt.Fprintln(w, err)
-		return
-	}
-
-	result := SearchResult{
-		Pattern:  pattern,
-		RootDir:  *rootDir,
-		Snippets: snippets}
-
-	if err := t.ExecuteTemplate(w, "result.html", result); err != nil {
-		log.Fatalln(err)
-	}
+	handleSearchResult(w, pattern)
 }
 
 func main() {
@@ -211,5 +232,7 @@ func main() {
 	log.Println("Listening localhost:3000...")
 
 	http.HandleFunc("/", httpHandler)
-	http.ListenAndServe(":3000", nil)
+	if err := http.ListenAndServe(":3000", nil); err != nil {
+		log.Fatalln(err)
+	}
 }
