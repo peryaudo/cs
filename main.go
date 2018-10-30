@@ -184,42 +184,29 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	pattern := r.FormValue("q")
 
-	// If the path is /src, return the file content.
-	if strings.HasPrefix(path, "/src") {
-		fullPath := filepath.Join(*rootDir, path[4:])
-		info, err := os.Stat(fullPath)
-		if err != nil {
-			log.Println(err)
-			http.NotFound(w, r)
-			return
-		}
-
-		relPath, _ := filepath.Rel(*rootDir, fullPath)
-		if info.IsDir() {
-			handleDirectoryListing(w, relPath, pattern)
-		} else {
-			handleSourceListing(w, relPath, pattern)
-		}
+	if path == "/" && pattern != "" {
+		handleSearchResult(w, pattern)
 		return
 	}
 
-	if path != "/" {
+	fullPath := filepath.Join(*rootDir, path)
+	info, err := os.Stat(fullPath)
+	if os.IsNotExist(err) {
+		log.Println(err)
 		http.NotFound(w, r)
 		return
-	}
-
-	// If the path is root and query string is empty, return the index page.
-	if pattern == "" {
-		t := template.Must(template.ParseFiles("index.html"))
-
-		if err := t.ExecuteTemplate(w, "index.html", *rootDir); err != nil {
-			log.Fatalln(err)
-		}
+	} else if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	// Otherwise, return the search result.
-	handleSearchResult(w, pattern)
+	relPath, _ := filepath.Rel(*rootDir, fullPath)
+	if info.IsDir() {
+		handleDirectoryListing(w, relPath, pattern)
+	} else {
+		handleSourceListing(w, relPath, pattern)
+	}
 }
 
 func main() {

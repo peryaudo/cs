@@ -11,7 +11,7 @@
 			</form>
 		</div>
 		{{range .Snippets}}
-		<p><a href="/src/{{.RelPath}}?q={{$.Pattern}}#L{{.LineNum}}">{{.RelPath}}:{{.LineNum}}</a>: {{.Line}}</p>
+		<p><a href="/{{.RelPath}}?q={{$.Pattern}}#L{{.LineNum}}">{{.RelPath}}:{{.LineNum}}</a>: {{.Line}}</p>
 		{{end}}
 	</body>
 </html>
